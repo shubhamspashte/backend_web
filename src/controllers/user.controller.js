@@ -24,8 +24,6 @@ const generateAccessAndRefreshTokens = async(userId)=>{
 }
 
 
-
-
 const registerUser = asyncHandler( async (req, res) => {
         // get user details from frontend 
         // validation - not empty 
@@ -167,6 +165,7 @@ const loginUser = asyncHandler(async(req,res) => {
 
 })
 
+
 const logoutUser = asyncHandler(async(req,res)=>{
     await User.findByIdAndUpdate(
         req.user._id,
@@ -257,11 +256,13 @@ const changeCurrentPassword = asyncHandler(async(req, res)=> {
     .json(new ApiResponse(200, {}, "Password changed successfully"))
 })
 
+
 const getCurrentUser = asyncHandler(async(req,res)=>{
     return res
     .status(200)
-    .json(200, req.user, "current user fetched successfully")
+    .json(new ApiResponse(200, req.user, "current user fetched successfully"))
 })
+
 
 const updateAccountDetails = asyncHandler(async(req, res) => {
     const {fullname, email} = req.body
@@ -271,7 +272,7 @@ const updateAccountDetails = asyncHandler(async(req, res) => {
         throw new ApiError(400, "All fields are required")
     }
 
-    const user = User.findByIdAndUpdate(
+    const user = await User.findByIdAndUpdate(
         req.user?._id,
         {
             $set: {
@@ -289,6 +290,7 @@ const updateAccountDetails = asyncHandler(async(req, res) => {
     .json(new ApiResponse(200, user, "Account details updated successfully"))
 })
 
+
 const updateUserAvatar = asyncHandler(async(req,res) => {
     const avatarLocalPath = req.file?.path
 
@@ -296,6 +298,27 @@ const updateUserAvatar = asyncHandler(async(req,res) => {
         throw new ApiError(400, "Avatar file is missing")
     }
 
+
+    const userId = req.user?._id;
+
+    // Get existing user info
+    const existingUser = await User.findById(userId);
+    if (!existingUser) {
+        throw new ApiError(404, "User not found");
+    }
+
+    // Delete old avatar from Cloudinary if it exists
+    if (existingUser.avatar) {
+        const publicId = extractPublicIdFromUrl(existingUser.avatar);
+        if (publicId) {
+            try {
+                await deleteFromCloudinary(publicId);
+            } catch (error) {
+                throw new ApiError(400, error?.message || "Failed to delete old Aavatar")
+            }
+        }
+    }
+    // code for new avatar
     const avatar = await uploadOnCloudinary(avatarLocalPath)
 
     if(!avatar.url){
@@ -328,7 +351,28 @@ const updateUserCoverImage = asyncHandler(async(req,res) => {
     if(!coverImageLocalPath){
         throw new ApiError(400, "CoverImage file is missing")
     }
+    const userId = req.user?._id;
 
+    // Get existing user info
+    const existingUser = await User.findById(userId);
+    if (!existingUser) {
+        throw new ApiError(404, "User not found");
+    }
+
+    // Delete old cover iimage from Cloudinary if it exists
+    if (existingUser.coverImage) {
+        const publicId = extractPublicIdFromUrl(existingUser.coverImage);
+        if (publicId) {
+            try {
+                await deleteFromCloudinary(publicId);
+            } catch (error) {
+                throw new ApiError(400, error?.message || "Failed to delete old coverImage")
+            }
+        }
+    }
+
+
+    // code for new
     const coverImage = await uploadOnCloudinary(coverImageLocalPath)
 
     if(!coverImage.url){
